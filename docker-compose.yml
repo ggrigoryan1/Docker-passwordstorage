@@ -1,0 +1,87 @@
+version: '3'
+
+networks:
+  laravel:
+
+services:
+  nginx:
+    image: nginx:stable-alpine
+    container_name: nginx
+    ports:
+      - "8080:80"
+      - "443:443"
+    volumes:
+      - ./www:/var/www/html
+      - ./nginx/:/etc/nginx/conf.d/
+    depends_on:
+      - php
+      - mysql
+    networks:
+      - laravel
+
+  mysql:
+    image: mysql:5.7
+    container_name: mysql
+    restart: on-failure
+    tty: true
+    ports:
+      - "33060:3306"
+    environment:
+      MYSQL_DATABASE: docker_passwordStorage
+      MYSQL_USER: root
+      MYSQL_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: secret
+      SERVICE_TAGS: dev
+      SERVICE_NAME: mysql
+    volumes:
+      - ./database/mysql:/var/lib/mysql/
+      - ./database/my.cnf/my.cnf:/etc/mysql/my.cnf
+    networks:
+      - laravel
+
+  php:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: php
+    volumes:
+      - ./www:/var/www/html
+    ports:
+      - "9000:9000"
+    networks:
+      - laravel
+
+  composer:
+    image: composer:latest
+    container_name: composer
+    volumes:
+      - ./www/passwordstorage:/var/www/html/passwordstorage
+    working_dir: /var/www/html/passwordstorage
+    command: composer install
+    depends_on:
+      - php
+    networks:
+      - laravel
+
+  npm:
+    image: node:latest
+    container_name: npm
+    volumes:
+      - ./www/passwordstorage:/var/www/html/passwordstorage
+    working_dir: /var/www/html/passwordstorage
+    command: npm install
+    entrypoint: ['npm']
+
+  artisan:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: artisan
+    volumes:
+      - ./www/passwordstorage:/var/www/html/passwordstorage
+    depends_on:
+      - mysql
+    working_dir: /var/www/html/passwordstorage
+    entrypoint: ['php', '/var/www/html/passwordstorage/artisan']
+    networks:
+      - laravel
